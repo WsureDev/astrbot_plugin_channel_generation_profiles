@@ -1,4 +1,9 @@
 {
+  "features": {
+    "type": "list",
+    "description": "要启用的可选 integration。目标插件未加载时，该 integration 自动跳过。",
+    "default": ["comfyui", "image_generation"]
+  },
   "profiles": {
     "type": "object",
     "description": "按渠道绑定的生图配置。profile 名称对应 profiles 下的键。",
@@ -6,14 +11,6 @@
       "qq": {"platforms": ["aiocqhttp", "qq_official", "qq_official_webhook"], "comfyui": {}, "image_generation": {}},
       "telegram": {"platforms": ["telegram"], "comfyui": {}, "image_generation": {}},
       "default": {"platforms": [], "comfyui": {}, "image_generation": {}}
-    }
-  },
-  "targets": {
-    "type": "object",
-    "description": "被代理的原插件名称。",
-    "default": {
-      "comfyui": "astrbot_plugin_comfyui_pro",
-      "image_generation": "astrbot_plugin_image_generation"
     }
   },
   "strict_version": {
