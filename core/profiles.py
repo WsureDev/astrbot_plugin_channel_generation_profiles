@@ -22,7 +22,13 @@ class ProfileStore:
     """Generic profile storage. It knows nothing about any target plugin."""
 
     def __init__(self, config: dict[str, Any], data_dir: Path):
-        self._profiles = copy.deepcopy(config.get("profiles") or {})
+        raw_profiles = config.get("profiles") or {}
+        if isinstance(raw_profiles, str):
+            try:
+                raw_profiles = json.loads(raw_profiles)
+            except json.JSONDecodeError:
+                raw_profiles = {}
+        self._profiles = copy.deepcopy(raw_profiles if isinstance(raw_profiles, dict) else {})
         self._bindings = self._make_bindings(self._profiles)
         self._path = data_dir / "profiles.json"
         self._state: dict[str, dict[str, Any]] = {}

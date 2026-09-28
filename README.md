@@ -19,6 +19,8 @@ main.py            只负责装配 feature 和转发事件
 
 ## 配置
 
+AstrBot v4.28 的动态对象 schema 要求 `object` 提供固定 `items`。由于 profile 名称和数量是动态的，本插件把 `profiles` 配置为 JSON 文本；内容本身仍是下面的对象结构。
+
 ```json
 {
   "features": ["comfyui", "image_generation"],
