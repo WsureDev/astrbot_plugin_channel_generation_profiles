@@ -5,6 +5,25 @@ from dataclasses import dataclass
 from typing import Any
 
 
+PLATFORM_ALIASES = {
+    "aiocqhttp": "qq",
+    "onebot": "qq",
+    "onebot11": "qq",
+    "napcat": "qq",
+    "qq": "qq",
+    "qqbot": "qq",
+    "qq_official": "qq",
+    "qq_official_webhook": "qq",
+    "telegram": "telegram",
+    "telegram_bot": "telegram",
+}
+
+
+def normalize_platform(value: str) -> str:
+    platform = str(value or "unknown").strip().lower()
+    return PLATFORM_ALIASES.get(platform, platform)
+
+
 @dataclass(frozen=True)
 class Channel:
     platform: str
@@ -16,7 +35,7 @@ class Channel:
 
 
 def from_event(event: Any) -> Channel:
-    platform = str(event.get_platform_name() or "unknown").strip().lower()
+    platform = normalize_platform(event.get_platform_name())
     bot_id = ""
     for name in ("get_self_id", "get_bot_id"):
         getter = getattr(event, name, None)

@@ -7,7 +7,7 @@
   "profiles": {
     "type": "text",
     "description": "JSON 格式的渠道 profile 配置。AstrBot v4.28 的动态对象 schema 必须使用文本承载。",
-    "default": "{\"qq\":{\"platforms\":[\"aiocqhttp\",\"qq_official\",\"qq_official_webhook\"],\"comfyui\":{},\"image_generation\":{}},\"telegram\":{\"platforms\":[\"telegram\"],\"comfyui\":{},\"image_generation\":{}},\"default\":{\"platforms\":[],\"comfyui\":{},\"image_generation\":{}}}"
+    "default": "{\"qq\":{\"platforms\":[\"qq\"],\"comfyui\":{},\"image_generation\":{}},\"telegram\":{\"platforms\":[\"telegram\"],\"comfyui\":{},\"image_generation\":{}},\"default\":{\"platforms\":[],\"comfyui\":{},\"image_generation\":{}}}"
   },
   "strict_version": {
     "type": "bool",

@@ -57,10 +57,10 @@ class ChannelGenerationProfiles(Star):
         for integration in self.integrations:
             integration.activate_route(event)
             raw = (getattr(event, "message_str", "") or "").strip()
-            if raw.startswith("/"):
-                command = raw[1:].split(maxsplit=1)[0].lower()
-                if integration.on_event(event, command, raw):
-                    return
+            command_text = raw[1:] if raw.startswith("/") else raw
+            command = command_text.split(maxsplit=1)[0].lower() if command_text else ""
+            if integration.on_event(event, command, raw):
+                return
 
     @filter.on_llm_request(priority=90)
     async def inject_profile_context(self, event: AstrMessageEvent, request: Any) -> None:
