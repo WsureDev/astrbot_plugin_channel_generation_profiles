@@ -1,0 +1,24 @@
+{
+  "profiles": {
+    "type": "object",
+    "description": "按渠道绑定的生图配置。profile 名称对应 profiles 下的键。",
+    "default": {
+      "qq": {"platforms": ["aiocqhttp", "qq_official", "qq_official_webhook"], "comfyui": {}, "image_generation": {}},
+      "telegram": {"platforms": ["telegram"], "comfyui": {}, "image_generation": {}},
+      "default": {"platforms": [], "comfyui": {}, "image_generation": {}}
+    }
+  },
+  "targets": {
+    "type": "object",
+    "description": "被代理的原插件名称。",
+    "default": {
+      "comfyui": "astrbot_plugin_comfyui_pro",
+      "image_generation": "astrbot_plugin_image_generation"
+    }
+  },
+  "strict_version": {
+    "type": "bool",
+    "description": "发现不兼容的原插件接口时是否停用对应代理。",
+    "default": true
+  }
+}
