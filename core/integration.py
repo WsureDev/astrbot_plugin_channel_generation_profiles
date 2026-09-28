@@ -71,12 +71,20 @@ class Integration:
             logger.warning("[%s] target lookup unavailable; integration disabled", self.name)
             return None
         try:
-            target = getter(self.target_plugin)
+            metadata = getter(self.target_plugin)
         except Exception as exc:
             logger.warning("[%s] target %s unavailable: %s", self.name, self.target_plugin, exc)
             return None
-        if target is None:
+        if metadata is None:
             logger.info("[%s] target %s is not loaded; integration disabled", self.name, self.target_plugin)
+            return None
+        if not bool(getattr(metadata, "activated", False)):
+            logger.info("[%s] target %s is registered but inactive; integration disabled", self.name, self.target_plugin)
+            return None
+        target = getattr(metadata, "star_cls", None)
+        if target is None:
+            logger.warning("[%s] target %s has no live star_cls; integration disabled", self.name, self.target_plugin)
+            return None
         return target
 
     def _unsupported(self, message: str) -> bool:

@@ -101,8 +101,11 @@ class ComfyUIIntegration(Integration):
     def on_event(self, event: Any, command: str, raw: str) -> bool:
         if command not in {"comfy_use", "渠道工作流"}:
             return False
+        command_text = raw.strip()
+        if command_text.startswith("/"):
+            command_text = command_text[1:].lstrip()
+        args = command_text.split()
         if command == "渠道工作流":
-            args = raw.split()
             if len(args) < 2:
                 asyncio.create_task(event.send(event.plain_result("用法：/渠道工作流 <文件名> [正向节点] [负向节点] [输出节点]")))
                 event.stop_event()
@@ -112,7 +115,6 @@ class ComfyUIIntegration(Integration):
             for key, value in zip(("input_node_id", "neg_node_id", "output_node_id"), args[2:5]):
                 values[key] = value
         else:
-            args = raw.split()
             try:
                 files = sorted(f.name for f in self.api.workflow_dir.glob("*.json") if not self.target._is_workflow_aux_file(f.name))
                 filename = files[int(args[1]) - 1]
@@ -126,6 +128,7 @@ class ComfyUIIntegration(Integration):
         name, _ = self.profile(event)
         self.profiles.update(name, "comfyui", values)
         logger.info("[%s] channel=%s profile=%s workflow=%s", self.name, getattr(event, "unified_msg_origin", ""), name, values)
+        asyncio.create_task(event.send(event.plain_result(f"已为渠道 {name} 保存工作流：{values['workflow']}")))
         event.stop_event()
         return True
 

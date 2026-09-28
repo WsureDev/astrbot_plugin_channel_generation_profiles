@@ -89,7 +89,10 @@ class ImageGenerationIntegration(Integration):
             return False
         models = list(getattr(manager.adapter_config, "available_models", []) or [])
         profile_name, profile = self.profile(event)
-        argument = raw.partition(" ")[2].strip()
+        command_text = raw.strip()
+        if command_text.startswith("/"):
+            command_text = command_text[1:].lstrip()
+        argument = command_text.partition(" ")[2].strip()
         if not argument:
             current = (profile.get("image_generation", {}) or {}).get("model")
             lines = [f"渠道 {profile_name} 可用模型："]

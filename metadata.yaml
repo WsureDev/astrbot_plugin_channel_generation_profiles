@@ -1,5 +1,5 @@
 name: astrbot_plugin_channel_generation_profiles
 display_name: 渠道生图配置隔离
 desc: 为 AstrBot 的 ComfyUI 与生图插件提供按渠道隔离的工作流和模型配置。
-version: v0.1.1
+version: v0.1.2
 author: WsureDev
