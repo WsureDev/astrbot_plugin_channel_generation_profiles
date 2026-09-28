@@ -181,6 +181,8 @@ class ChannelGenerationProfiles(Star):
         self.store = ProfileStore(self.config, self.data_dir)
         self._target_comfy: Any = None
         self._target_image: Any = None
+        self._comfy_enabled = False
+        self._image_enabled = False
         self._originals: list[tuple[Any, str, Any]] = []
         self._comfy_lock = asyncio.Lock()
         self._model_lock = asyncio.Lock()
@@ -189,15 +191,34 @@ class ChannelGenerationProfiles(Star):
         self._origin_profiles: dict[str, str] = {}
 
     async def initialize(self) -> None:
-        self._target_comfy = self.context.get_registered_star(
-            (self.config.get("targets") or {}).get("comfyui", COMFY)
+        targets = self.config.get("targets") or {}
+        self._target_comfy = self._find_target(targets.get("comfyui", COMFY), "ComfyUI")
+        self._target_image = self._find_target(targets.get("image_generation", IMAGE), "image generation")
+        self._comfy_enabled = self._patch_comfy()
+        self._image_enabled = self._patch_image_generation()
+        logger.info(
+            "[%s] initialized; profiles=%s; comfy_hook=%s; image_hook=%s",
+            PLUGIN,
+            sorted(self.store.profiles),
+            self._comfy_enabled,
+            self._image_enabled,
         )
-        self._target_image = self.context.get_registered_star(
-            (self.config.get("targets") or {}).get("image_generation", IMAGE)
-        )
-        self._patch_comfy()
-        self._patch_image_generation()
-        logger.info("[%s] initialized; channel profiles=%s", PLUGIN, sorted(self.store.profiles))
+
+    def _find_target(self, name: str, label: str) -> Any:
+        """Resolve a loaded Star without making a missing target fatal."""
+        getter = getattr(self.context, "get_registered_star", None)
+        if not callable(getter):
+            logger.warning("[%s] %s target lookup is unavailable; hook disabled", PLUGIN, label)
+            return None
+        try:
+            target = getter(str(name))
+        except Exception as exc:
+            logger.warning("[%s] %s target %s not found: %s; hook disabled", PLUGIN, label, name, exc)
+            return None
+        if target is None:
+            logger.info("[%s] %s target %s is not loaded; hook disabled", PLUGIN, label, name)
+            return None
+        return target
 
     async def terminate(self) -> None:
         for executor in self._image_executors.values():
@@ -220,23 +241,28 @@ class ChannelGenerationProfiles(Star):
     @filter.event_message_type(filter.EventMessageType.ALL, priority=10_000)
     async def activate_channel_profile(self, event: AstrMessageEvent) -> None:
         """Set routing context before commands, tools, and automatic ComfyUI hooks run."""
+        if not self._comfy_enabled and not self._image_enabled:
+            return
         _ACTIVE_ROUTE.set((self, event))
         self._origin_profiles[str(event.unified_msg_origin)] = self.store.name_for(event)
         raw = (getattr(event, "message_str", "") or "").strip()
         if not raw.startswith("/"):
             return
         command = raw[1:].split(maxsplit=1)[0].lower()
-        if command == "comfy_use":
+        if command == "comfy_use" and self._comfy_enabled:
             await self._handle_workflow_command(event)
-        elif command == "生图模型":
+        elif command == "生图模型" and self._image_enabled:
             await self._handle_model_command(event, raw.partition(" ")[2].strip())
 
-    def _patch_comfy(self) -> None:
+    def _patch_comfy(self) -> bool:
         plugin = self._target_comfy
         api = getattr(plugin, "api", None) if plugin else None
-        if not plugin or not api or not hasattr(api, "submit"):
+        if not plugin:
+            logger.info("[%s] ComfyUI target is absent; ComfyUI hook disabled", PLUGIN)
+            return False
+        if not api or not callable(getattr(api, "submit", None)):
             self._compatibility_error("ComfyUI API unavailable")
-            return
+            return False
         original_submit = api.submit
         original_wait = getattr(api, "wait_for_result", None)
         api._channel_original_submit = original_submit
@@ -277,15 +303,16 @@ class ChannelGenerationProfiles(Star):
                 self.store.update(event, "comfyui", values)
                 return True, f"已为渠道 {self.store.name_for(event)} 保存工作流：{filename}"
             self._replace(api, "reload_config", reload_for_channel)
+        return True
 
-    def _patch_image_generation(self) -> None:
+    def _patch_image_generation(self) -> bool:
         plugin = self._target_image
         if plugin is None:
-            self._compatibility_error("image generation plugin unavailable")
-            return
-        if not hasattr(plugin, "create_generation_task") or not hasattr(plugin, "generation_executor"):
+            logger.info("[%s] image generation target is absent; image hook disabled", PLUGIN)
+            return False
+        if not callable(getattr(plugin, "create_generation_task", None)) or not hasattr(plugin, "generation_executor"):
             self._compatibility_error("image generation task API unavailable")
-            return
+            return False
         original_create = plugin.create_generation_task
 
         # create_generation_task closes over self.generation_executor. Temporarily selecting
@@ -318,6 +345,7 @@ class ChannelGenerationProfiles(Star):
             async def model_for_channel(event, model_index=""):
                 return await self._handle_model_command(event, model_index)
             self._replace(plugin, "model_command", model_for_channel)
+        return True
 
     def _get_image_executor(self, profile_name: str) -> Any:
         if profile_name in self._image_executors:
@@ -425,14 +453,17 @@ class ChannelGenerationProfiles(Star):
 
     @filter.on_llm_request(priority=90)
     async def inject_profile_context(self, event: AstrMessageEvent, req: Any) -> None:
+        if not self._comfy_enabled and not self._image_enabled:
+            return
         _ACTIVE_ROUTE.set((self, event))
         self._origin_profiles[str(event.unified_msg_origin)] = self.store.name_for(event)
-        text = (
-            "<channel_generation_profile>\n"
-            "当前请求只允许使用本渠道绑定的画图/生图配置。\n"
-            + self._profile_text(event)
-            + "\n</channel_generation_profile>"
-        )
+        sections = []
+        profile = self.store.profile(event)
+        if self._comfy_enabled:
+            sections.append("comfyui=" + json.dumps(profile.get("comfyui", {}), ensure_ascii=False))
+        if self._image_enabled:
+            sections.append("image_generation=" + json.dumps(profile.get("image_generation", {}), ensure_ascii=False))
+        text = "<channel_generation_profile>\n当前请求只允许使用本渠道绑定的配置。\n" + "\n".join(sections) + "\n</channel_generation_profile>"
         if hasattr(req, "add_user_text"):
             req.add_user_text(text, slot="channel_generation_profile")
 
@@ -442,6 +473,9 @@ class ChannelGenerationProfiles(Star):
 
     @filter.command("渠道工作流")
     async def set_workflow(self, event: AstrMessageEvent):
+        if not self._comfy_enabled:
+            yield event.plain_result("ComfyUI 插件未加载，渠道工作流 hook 未启用")
+            return
         args = (event.message_str or "").split()
         if len(args) < 2:
             yield event.plain_result("用法：/渠道工作流 <文件名> [正向节点] [负向节点] [输出节点]")
@@ -454,6 +488,9 @@ class ChannelGenerationProfiles(Star):
 
     @filter.command("渠道模型")
     async def set_model(self, event: AstrMessageEvent):
+        if not self._image_enabled:
+            yield event.plain_result("生图插件未加载，渠道模型 hook 未启用")
+            return
         args = (event.message_str or "").split(maxsplit=1)
         if len(args) < 2 or "/" not in args[1]:
             yield event.plain_result("用法：/渠道模型 <供应商名/模型名>")
