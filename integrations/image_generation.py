@@ -104,6 +104,7 @@ class ImageGenerationIntegration(Integration):
             event.stop_event()
             return True
         self.profiles.update(profile_name, "image_generation", {"model": model})
+        logger.info("[%s] channel=%s profile=%s model=%s", self.name, getattr(event, "unified_msg_origin", ""), profile_name, model)
         self._executors.pop(profile_name, None)
         event.stop_event()
         return True

@@ -125,6 +125,7 @@ class ComfyUIIntegration(Integration):
                 values[key] = value
         name, _ = self.profile(event)
         self.profiles.update(name, "comfyui", values)
+        logger.info("[%s] channel=%s profile=%s workflow=%s", self.name, getattr(event, "unified_msg_origin", ""), name, values)
         event.stop_event()
         return True
 
