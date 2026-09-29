@@ -29,6 +29,7 @@ class ComfyUIIntegration(Integration):
         original_submit = self.api.submit
         original_wait = getattr(self.api, "wait_for_result", None)
         original_reload = getattr(self.api, "reload_config", None)
+        original_resolve = getattr(self.api, "resolve_workflow_filename", None)
         self.api._channel_original_submit = original_submit
         if original_wait:
             self.api._channel_original_wait = original_wait
@@ -61,6 +62,35 @@ class ComfyUIIntegration(Integration):
                 self.profiles.update(route.profile_name, "comfyui", values)
                 return True, f"已为渠道 {route.profile_name} 保存工作流：{filename}"
             self.replace(self.api, "reload_config", reload_config)
+
+        if original_resolve:
+            def resolve_workflow_filename(workflow_filename=None):
+                route = current_route()
+                if route is not None and not workflow_filename:
+                    settings = self.profiles.get(route.profile_name).get("comfyui", {}) or {}
+                    workflow_filename = settings.get("workflow") or None
+                    if workflow_filename:
+                        logger.info(
+                            "[%s] resolve default workflow: profile=%s workflow=%s",
+                            self.name,
+                            route.profile_name,
+                            workflow_filename,
+                        )
+                return original_resolve(workflow_filename)
+            self.replace(self.api, "resolve_workflow_filename", resolve_workflow_filename)
+
+        original_catalog = getattr(self.target, "_get_workflow_catalog", None)
+        if original_catalog:
+            def get_workflow_catalog(workflow=None):
+                route = current_route()
+                if route is not None and not workflow:
+                    settings = self.profiles.get(route.profile_name).get("comfyui", {}) or {}
+                    workflow = settings.get("workflow") or None
+                result = original_catalog(workflow)
+                if route is not None and isinstance(result, dict):
+                    result["default_workflow"] = workflow or result.get("default_workflow")
+                return result
+            self.replace(self.target, "_get_workflow_catalog", get_workflow_catalog)
         return True
 
     async def _submit_for(self, profile_name: str, prompt: str, kwargs: dict[str, Any]):
