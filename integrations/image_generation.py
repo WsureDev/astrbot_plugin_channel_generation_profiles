@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import inspect
 from typing import Any
 
@@ -56,8 +57,20 @@ class ImageGenerationIntegration(Integration):
         if not model:
             return self.target.generation_executor
         try:
-            from astrbot_plugin_image_generation.core.adapters.generator import ImageGenerator
-            from astrbot_plugin_image_generation.core.generation.executor import GenerationExecutor
+            # AstrBot loads plugins under its registered package path, which is
+            # commonly `data.plugins.<plugin_name>`, not a top-level package.
+            # Derive the package from the live target class instead of guessing
+            # an import name.
+            target_module = type(self.target).__module__
+            package = target_module.rsplit(".", 1)[0]
+            generator_module = importlib.import_module(
+                f"{package}.core.adapters.generator"
+            )
+            executor_module = importlib.import_module(
+                f"{package}.core.generation.executor"
+            )
+            ImageGenerator = generator_module.ImageGenerator
+            GenerationExecutor = executor_module.GenerationExecutor
 
             manager = self.target.config_manager
             selected = manager._select_adapter_config(
