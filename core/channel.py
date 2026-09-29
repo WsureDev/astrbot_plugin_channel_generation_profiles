@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import contextvars
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -37,7 +38,7 @@ class Channel:
 def from_event(event: Any) -> Channel:
     platform = normalize_platform(event.get_platform_name())
     bot_id = ""
-    for name in ("get_self_id", "get_bot_id"):
+    for name in ("get_platform_id", "get_self_id", "get_bot_id"):
         getter = getattr(event, name, None)
         if callable(getter):
             try:
@@ -54,6 +55,8 @@ class Route:
     event: Any
     channel: Channel
     profile_name: str
+    profile: dict[str, Any] | None = None
+    runtimes: dict[object, Any] = field(default_factory=dict, compare=False, repr=False)
 
 
 _current_route: contextvars.ContextVar[Route | None] = contextvars.ContextVar(
@@ -61,9 +64,18 @@ _current_route: contextvars.ContextVar[Route | None] = contextvars.ContextVar(
 )
 
 
-def set_route(route: Route | None) -> None:
-    _current_route.set(route)
+def set_route(route: Route | None):
+    return _current_route.set(route)
 
 
 def current_route() -> Route | None:
     return _current_route.get()
+
+
+@contextmanager
+def bind_route(route: Route | None):
+    token = set_route(route)
+    try:
+        yield
+    finally:
+        _current_route.reset(token)

@@ -11,7 +11,7 @@
   },
   "strict_version": {
     "type": "bool",
-    "description": "发现不兼容的原插件接口时是否停用对应代理。",
+    "description": "额外核对目标插件的调用签名；基础接口检查始终启用。不兼容时停用对应 integration。",
     "default": true
   }
 }
