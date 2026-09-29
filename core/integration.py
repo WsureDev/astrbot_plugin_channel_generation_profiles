@@ -47,6 +47,9 @@ class Integration:
     def on_event(self, event, command, raw):
         return False
 
+    def on_using_llm_tool(self, event, tool, tool_args):
+        pass
+
     def profile(self, event):
         return self.profiles.for_channel(from_event(event))
 

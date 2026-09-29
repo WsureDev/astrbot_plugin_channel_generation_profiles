@@ -63,6 +63,17 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         await plugin.initialize()
         self.assertEqual(plugin.integrations, {})
         await plugin.terminate()
+    async def test_tool_hook_routes_by_call_event_and_respects_disabled_integration(self):
+        _, metadata = await self.load_target(self.root / "target")
+        tool = types.SimpleNamespace(name="comfyui_txt2img")
+        args = {"prompt": "fixture", "direct_send": False}
+        await self.plugin.route_llm_tool(Event("telegram"), tool, args)
+        self.assertTrue(args["direct_send"])
+        self.assertEqual(channel.current_route().channel.platform, "telegram")
+        await self.plugin.on_plugin_unloaded(metadata)
+        args["direct_send"] = False
+        await self.plugin.route_llm_tool(Event("telegram"), tool, args)
+        self.assertFalse(args["direct_send"])
 
 class PatchOwnershipTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_install_restores_partial_changes(self):

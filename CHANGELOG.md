@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.1
+
+- Telegram 的 ComfyUI 绘图命令默认逐张直发，等效于 `/画图no`，不再输出合并转发节点。
+- LLM 调用 `comfyui_txt2img` 时同步设置 `direct_send=true`，适用于单图和批量等待阶段。
+- 新增 `comfyui_direct_send_platforms`，默认仅 Telegram；可扩展平台或用空列表关闭。
+- 保留原命令解析、权限检查和其他平台发送设置；卸载恢复原命令入口。
+
 ## v0.2.0 — 2026-09-29
 
 - 用完整渠道 API 实例替换 ComfyUI 共享字段的临时切换，统一直接属性读取和方法内部状态。

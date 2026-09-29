@@ -25,6 +25,7 @@ def decorator(*args, **kwargs):
 event_api.filter = types.SimpleNamespace(
     EventMessageType=types.SimpleNamespace(ALL="all"),
     event_message_type=decorator, command=decorator, on_llm_request=decorator,
+    on_using_llm_tool=decorator,
     on_astrbot_loaded=decorator, on_plugin_loaded=decorator, on_plugin_unloaded=decorator)
 sys.modules.setdefault("astrbot.api.event", event_api)
 star_api = types.ModuleType("astrbot.api.star")
@@ -114,6 +115,9 @@ class ComfyTarget:
         for name in ("global.json", "qq.json", "telegram.json"):
             (self.workflow_dir / name).write_text("{}")
     def _list_workflow_files(self): return sorted(p.name for p in self.workflow_dir.glob("*.json"))
+    async def _handle_paint_logic(self, event, direct_send):
+        await asyncio.sleep(0)
+        yield direct_send
     def _is_workflow_aux_file(self, name): return False
     def _get_workflow_catalog(self, workflow=None):
         names = [self.api.resolve_workflow_filename(workflow)] if workflow else self._list_workflow_files()

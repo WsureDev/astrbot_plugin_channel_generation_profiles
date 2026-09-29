@@ -4,9 +4,10 @@ import asyncio
 import copy
 import json
 from dataclasses import dataclass
+from functools import wraps
 from typing import Any
 from astrbot.api import logger
-from ..core.channel import current_route
+from ..core.channel import current_route, normalize_platform
 from ..core.integration import Integration
 
 @dataclass
@@ -51,6 +52,7 @@ class ComfyUIIntegration(Integration):
         self._submissions = {}
         self._submitting = 0
         self._wait_patch = None
+        self._direct_send_platforms = frozenset()
 
     def install(self):
         self.api = getattr(self.target, "api", None)
@@ -64,6 +66,26 @@ class ComfyUIIntegration(Integration):
         self.require_call(self.api.wait_for_result, "id", timeout_seconds=120)
         self.require_call(self.api.reload_config, "workflow.json", input_id=None, output_id=None, neg_node_id=None)
         self.require_call(self.api.resolve_workflow_filename, None)
+        platforms = self.config.get("comfyui_direct_send_platforms", ["telegram"])
+        if not isinstance(platforms, list) or any(
+            not isinstance(value, str) or not value.strip() for value in platforms
+        ):
+            return self._unsupported("comfyui_direct_send_platforms must be a list of platform names")
+        self._direct_send_platforms = frozenset(normalize_platform(value) for value in platforms)
+        if self._direct_send_platforms:
+            original_paint = getattr(self.target, "_handle_paint_logic", None)
+            self.require_call(original_paint, None, direct_send=False)
+
+            @wraps(original_paint)
+            async def handle_paint(event, direct_send):
+                if self.force_direct_send(event):
+                    direct_send = True
+                async for result in original_paint(event, direct_send=direct_send):
+                    yield result
+
+            # Original command handlers still parse input and enforce access.
+            # Change only their delivery flag; never rewrite the user's message.
+            self.replace(self.target, "_handle_paint_logic", handle_paint)
         self._original_wait = self.api.wait_for_result
         async def bridge(prompt_id, *args, **kwargs):
             return await self.wait(prompt_id, *args, **kwargs)
@@ -71,6 +93,16 @@ class ComfyUIIntegration(Integration):
         self._wait_patch = self.replace(self.api, "wait_for_result", bridge)
         self.replace(self.target, "api", ChannelComfyAPI(self))
         return True
+
+    def force_direct_send(self, event):
+        return normalize_platform(event.get_platform_name()) in self._direct_send_platforms
+
+    def on_using_llm_tool(self, event, tool, tool_args):
+        # AstrBot keeps registered tool handlers independently of instance
+        # methods. Its pre-call hook changes the actual invocation arguments.
+        if (getattr(tool, "name", None) == "comfyui_txt2img"
+                and isinstance(tool_args, dict) and self.force_direct_send(event)):
+            tool_args["direct_send"] = True
 
     def _client_config(self, settings):
         config = copy.deepcopy(dict(self.target.config))

@@ -102,6 +102,13 @@ class ChannelGenerationProfiles(Star):
         # Bind execution state; do not append a second competing prompt.
         self._route(event, preserve=True)
 
+    @filter.on_using_llm_tool(priority=10_000)
+    async def route_llm_tool(self, event: AstrMessageEvent, tool, tool_args):
+        self._route(event, preserve=True)
+        for integration in self.integrations.values():
+            if integration.active:
+                integration.on_using_llm_tool(event, tool, tool_args)
+
     @filter.command("渠道生图配置")
     async def show_profile(self, event: AstrMessageEvent):
         name, profile = self.profiles.for_channel(from_event(event))

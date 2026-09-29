@@ -9,6 +9,11 @@
     "description": "JSON 格式的渠道 profile 配置。AstrBot v4.28 的动态对象 schema 必须使用文本承载。",
     "default": "{\"qq\":{\"platforms\":[\"qq\"],\"comfyui\":{},\"image_generation\":{}},\"telegram\":{\"platforms\":[\"telegram\"],\"comfyui\":{},\"image_generation\":{}},\"default\":{\"platforms\":[],\"comfyui\":{},\"image_generation\":{}}}"
   },
+  "comfyui_direct_send_platforms": {
+    "type": "list",
+    "description": "ComfyUI 强制逐张直发的平台，仅在 comfyui integration 启用时生效。默认 telegram；可添加其他不支持合并转发的平台，空列表关闭。",
+    "default": ["telegram"]
+  },
   "strict_version": {
     "type": "bool",
     "description": "额外核对目标插件的调用签名；基础接口检查始终启用。不兼容时停用对应 integration。",
