@@ -78,13 +78,19 @@ class ComfyUIIntegration(Integration):
 
             @wraps(original_paint)
             async def handle_paint(event, direct_send):
-                if self.force_direct_send(event):
+                consume_command = self.force_direct_send(event)
+                if consume_command:
                     direct_send = True
                 async for result in original_paint(event, direct_send=direct_send):
                     yield result
+                if consume_command:
+                    # Each yield must finish the downstream send stage first.
+                    # Stopping earlier would suppress images or truncate batches.
+                    # This is the command boundary, never the LLM tool boundary.
+                    event.stop_event()
 
             # Original command handlers still parse input and enforce access.
-            # Change only their delivery flag; never rewrite the user's message.
+            # Route delivery and consume handled commands without rewriting input.
             self.replace(self.target, "_handle_paint_logic", handle_paint)
         self._original_wait = self.api.wait_for_result
         async def bridge(prompt_id, *args, **kwargs):

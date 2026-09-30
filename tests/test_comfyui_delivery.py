@@ -4,7 +4,7 @@ import types
 import unittest
 from pathlib import Path
 
-from tests.support import ComfyTarget, Event, channel, context, module, route, store
+from tests.support import ComfyTarget, CommandEvent as Event, channel, context, module, route, store
 
 
 class ComfyDeliveryTests(unittest.IsolatedAsyncioTestCase):
@@ -48,6 +48,21 @@ class ComfyDeliveryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(platform=platform):
                 self.assertEqual(await self.paint(Event(platform)), [False])
                 self.assertEqual(await self.paint(Event(platform), True), [True])
+
+    async def test_telegram_command_stops_only_after_last_reply(self):
+        event = Event("telegram")
+        replies = self.target._handle_paint_logic(event, False)
+        self.assertTrue(await anext(replies))
+        self.assertFalse(event.is_stopped(), "A yielded reply must reach the sender")
+        with self.assertRaises(StopAsyncIteration):
+            await anext(replies)
+        self.assertTrue(event.is_stopped(), "A consumed command must not reach later handlers")
+
+    async def test_tool_call_does_not_stop_agent_round(self):
+        event = Event("telegram")
+        self.integration.on_using_llm_tool(
+            event, types.SimpleNamespace(name="comfyui_txt2img"), {"prompt": "a cat"})
+        self.assertFalse(event.is_stopped())
 
     async def test_concurrent_platforms_do_not_share_delivery_mode(self):
         tg, qq = await asyncio.gather(self.paint(Event("telegram")), self.paint(Event("qq")))

@@ -18,7 +18,7 @@ import unittest
 import uuid
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
-from tests.support import ComfyTarget, Event, channel, context, module, route, store
+from tests.support import ComfyTarget, CommandEvent, Event, channel, context, module, route, store
 from tests.test_image_generation import Target
 
 SOURCE = os.environ.get("PROFILE_TARGET_SOURCE_ROOT")
@@ -89,7 +89,7 @@ class DeliveryNode:
 class DeliveryNodes:
     def __init__(self, nodes): self.nodes = nodes
 
-class DeliveryEvent(Event):
+class DeliveryEvent(CommandEvent):
     def __init__(self, platform, admin=True):
         super().__init__(platform, admin)
         self.extras, self.sent = {}, []
@@ -192,6 +192,7 @@ class InstalledSourceContracts(unittest.IsolatedAsyncioTestCase):
                             expected = DeliveryNode if count == 1 else DeliveryNodes
                             self.assertIsInstance(components[0], expected)
                         self.assertEqual(event.message_str, before)
+                        self.assertEqual(event.is_stopped(), platform != "qq")
     async def test_actual_tool_direct_images_and_batch_state_preserve_agent_completion(self):
         target, integration = self.delivery()
         tool = types.SimpleNamespace(name="comfyui_txt2img")
@@ -204,6 +205,7 @@ class InstalledSourceContracts(unittest.IsolatedAsyncioTestCase):
                     results = [value async for value in target.comfyui_txt2img(event, **args)]
                     self.assertTrue(results)
                     self.assertTrue(all(isinstance(value, str) for value in results))
+                    self.assertFalse(event.is_stopped(), "LLM tools must finish the Agent round")
                     if count > 1:
                         state = event.get_extra(target._BATCH_WAIT_STATE_EXTRA)
                         self.assertEqual(state["direct_send"], platform == "telegram")
@@ -220,6 +222,7 @@ class InstalledSourceContracts(unittest.IsolatedAsyncioTestCase):
         event = DeliveryEvent("telegram", admin=False)
         results = [value async for value in target.cmd_paint(event)]
         self.assertEqual(results[0].chain[0].text, "denied")
+        self.assertTrue(event.is_stopped())
         self.assertEqual(list(target.output_dir.iterdir()), [])
     async def test_actual_api_submit_and_wait_use_channel_nodes(self):
         target, original, http = self.comfy()

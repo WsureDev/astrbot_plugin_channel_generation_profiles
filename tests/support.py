@@ -53,6 +53,13 @@ class Event:
     def get_sender_id(self): return "admin" if self.admin else "member"
     def stop_event(self): raise AssertionError("Original command must handle the event")
 
+class CommandEvent(Event):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.stopped = False
+    def stop_event(self): self.stopped = True
+    def is_stopped(self): return self.stopped
+
 def route(store, platform="qq"):
     event = Event(platform)
     name, values = store.for_channel(channel.from_event(event))

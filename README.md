@@ -27,6 +27,8 @@
 
 默认情况下，Telegram 的 `/画图`、`/绘画` 自动使用与 `/画图no` 相同的逐张直发规则，避免产生平台不支持的合并转发节点。单图与多图均生效；命令内容、工作流和提示词参数不被改写，权限、敏感词和冷却检查仍由原插件执行。
 
+命令的全部结果（包括拒绝和错误提示）交付后，调用 `event.stop_event()` 终止后续传播，避免消息继续进入其他 handler，或发送失败后被默认 LLM 当作聊天提示词处理。不会在图片交付前停止事件；LLM 工具入口不停止事件，以保留正常的 Agent 回合收尾。该命令消费规则仅作用于 `comfyui_direct_send_platforms` 中的平台。
+
 LLM 调用 `comfyui_txt2img` 时，通过 AstrBot 的 `on_using_llm_tool` 钩子将实际调用参数设为 `direct_send=true`，不依赖模型主动选择正确参数。批量任务的等待阶段继承该设置，原工具仍返回完成或提交状态，保持 Agent 回合的原有流程。
 
 `comfyui_direct_send_platforms` 默认 `["telegram"]`，`telegram_bot` 别名也生效。可以添加其他已确认需要直发的平台，例如 `["telegram", "discord"]`；设为 `[]` 可关闭本功能。未列入的平台（包括默认配置下的 QQ）保留原发送规则。此设置仅在 `features` 包含 `comfyui` 时生效，修改后重新加载本插件。
@@ -103,6 +105,8 @@ python3 -B -m unittest discover -s tests -v
 ```bash
 PROFILE_TARGET_SOURCE_ROOT=/path/to/data/plugins python3 -B -m unittest discover -s tests -v
 ```
+
+若同时设置 `ASTRBOT_SOURCE_ROOT=/path/to/AstrBot`（本地源码 checkout），还会执行真实调度器、命令处理阶段和默认 LLM 入口的离线传播测试，覆盖多图交付、权限拒绝、发送失败及后续插件请求 LLM 的情况。
 
 契约测试提取目标源码中的 API、工具和命令方法，在临时文件、假 HTTP 和假队列上执行；不导入目标 main 模块，不连接生产服务，不发送消息或生成图片。
 
